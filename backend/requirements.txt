@@ -1,0 +1,50 @@
+fastapi==0.118.0
+uvicorn[standard]==0.35.0
+sqlalchemy==2.0.36
+pydantic==2.9.2
+pydantic-settings==2.6.1
+python-multipart==0.0.17
+httpx==0.28.1
+python-dotenv==1.0.1
+
+# Vector store / retrieval
+# (No chromadb/hnswlib: those need a C++ compiler toolchain on Windows.
+# We use a small local flat-index vector store built on numpy instead --
+# see app/retrieval/vectorstore.py -- which is more than fast enough at
+# personal-document-collection scale and keeps setup to `pip install`.)
+rank-bm25==0.2.2
+sentence-transformers==3.3.1
+
+# Document parsing
+pymupdf==1.25.1
+python-docx==1.1.2
+python-pptx==1.0.2
+openpyxl==3.1.5
+pandas==2.2.3
+beautifulsoup4==4.12.3
+lxml==5.3.0
+markdown-it-py==3.0.0
+
+# OCR (pure-python model, no system binary required)
+easyocr==1.7.2
+Pillow==11.0.0
+
+# Security
+filetype==1.2.0
+bleach==6.2.0
+
+# Folder watching
+watchdog==5.0.3
+
+# Hosted LLM option
+anthropic==0.40.0
+
+# Utilities
+numpy==1.26.4
+
+# Demo/eval helpers
+reportlab==4.2.5
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
