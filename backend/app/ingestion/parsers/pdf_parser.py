@@ -79,11 +79,20 @@ def parse_pdf(path: str, ocr_fn=None) -> ParsedDocument:
         table_rects = [fitz.Rect(t.bbox) for t in tables]
 
         raw = page.get_text("dict")
+        # Only visible spans count towards the body-size estimate --
+        # otherwise a long run of hidden/tiny-font injected text (which
+        # can easily out-number the visible characters on a short page)
+        # would skew body_size down and make every real paragraph look
+        # "large" by comparison, misclassifying it all as headings.
         size_char_counts: dict[float, int] = {}
         for b in raw.get("blocks", []):
             for line in b.get("lines", []):
                 for span in line.get("spans", []):
-                    size_char_counts[span["size"]] = size_char_counts.get(span["size"], 0) + len(span.get("text", ""))
+                    size = span.get("size", 0)
+                    text = span.get("text", "")
+                    if size < MIN_READABLE_FONT_SIZE or span.get("color", 0) == WHITE_COLOR_INT:
+                        continue
+                    size_char_counts[size] = size_char_counts.get(size, 0) + len(text)
         body_size = _body_font_size(size_char_counts)
 
         page_text_chars = 0
