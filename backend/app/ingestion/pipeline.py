@@ -143,10 +143,11 @@ def ingest_file(db: Session, document_id: str) -> None:
         f"{injection_hits} distinct prompt-injection-style phrase pattern(s) detected in the text; "
         "they will never be followed as instructions." if injection_hits else None
     )
-    document.error_message = "; ".join(warnings) if warnings and chunk_count else document.error_message
     document.status = "ready" if chunk_count > 0 else "error"
-    if chunk_count == 0:
-        document.error_message = document.error_message or "no extractable text was found in this file"
+    if chunk_count > 0:
+        document.error_message = "; ".join(warnings) if warnings else None
+    else:
+        document.error_message = "no extractable text was found in this file"
     document.progress = 1.0
     db.commit()
 
