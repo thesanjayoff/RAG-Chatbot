@@ -192,7 +192,18 @@ def run_one_config(cfg: dict, dataset: list[dict], llm) -> dict:
     print(f"\n=== Config: {cfg['name']} ({cfg['label']}) ===")
     run_dir = RUNS_DIR / cfg["name"]
     if run_dir.exists():
-        shutil.rmtree(run_dir)
+        # A prior run that was force-killed (e.g. by low-memory protection)
+        # can leave its sqlite file transiently locked by Windows for a
+        # moment even after the process is gone; retry briefly instead of
+        # failing the whole eval over stale cleanup.
+        for attempt in range(5):
+            try:
+                shutil.rmtree(run_dir)
+                break
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(2)
     run_dir.mkdir(parents=True)
 
     reset_isolated_state(run_dir / "data")
