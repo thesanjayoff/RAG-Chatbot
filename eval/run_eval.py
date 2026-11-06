@@ -285,6 +285,16 @@ def main() -> int:
     for cfg in configs:
         all_summaries[cfg["name"]] = run_one_config(cfg, dataset, llm)
 
+    # Load any other configs' results already on disk from a prior run, so
+    # the comparison table stays complete even when a crashed/interrupted
+    # run is resumed with a --configs subset instead of a single pass.
+    for cfg in CONFIGS:
+        if cfg["name"] in all_summaries:
+            continue
+        existing = RESULTS_DIR / f"{cfg['name']}.json"
+        if existing.exists():
+            all_summaries[cfg["name"]] = json.loads(existing.read_text(encoding="utf-8"))["summary"]
+
     write_summary_md(all_summaries)
     return 0
 

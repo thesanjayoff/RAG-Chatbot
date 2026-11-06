@@ -147,19 +147,56 @@ python ../eval/run_eval.py --limit 10                          # quick smoke tes
 
 ### Results
 
-<!-- EVAL_RESULTS_TABLE -->
+Measured on this machine (local `qwen3:4b-instruct` via Ollama, CPU only), all 3 configs
+against the full 57-question dataset:
 
-Each config re-ingests the same 10 documents from scratch with the settings below, so the
-comparison isolates the retrieval strategy (and chunk size) as the only variable:
+| Config | Retrieval hit-rate | Answer correctness | Citation accuracy | Refusal accuracy (no-answer) | False-refusal rate | Injection defense rate |
+|---|---|---|---|---|---|---|
+| Hybrid (vector+BM25) + reranker, chunk=400 tok *(default)* | 100% | 92% | 92% | 100% | 6% | 100% |
+| Vector-only, no reranker, chunk=400 tok | 100% | 94% | 94% | 100% | 2% | 100% |
+| Hybrid (vector+BM25) + reranker, chunk=120 tok | 100% | 96% | 98% | 100% | 2% | 100% |
 
-| Config | What changes |
-|---|---|
-| Hybrid + reranker, chunk=400 tok | Default: vector + BM25 fused 50/50, cross-encoder reranked, ~400-token chunks |
-| Vector-only, chunk=400 tok | Same chunking, but BM25 weight is zeroed out and the reranker is skipped — pure dense retrieval |
-| Hybrid + reranker, chunk=120 tok | Same retrieval strategy as the default, with much smaller (~120-token) chunks |
+Each config re-ingests the same 10 documents from scratch, so the comparison isolates the
+retrieval strategy (and chunk size) as the only variable. Full per-question results
+(every answer, citation, and verdict) are in `eval/results/<config>.json`.
 
-Full per-question results (including every answer, citation, and verdict) are in
-`eval/results/<config>.json`.
+**What the numbers actually show:**
+
+- **Retrieval hit-rate was 100% everywhere**, including vector-only. At this corpus size
+  (10 documents), dense retrieval alone almost always surfaces the right document in the
+  top-k — the interesting differences show up downstream, in whether the *answer* ends up
+  correct and whether the model *trusts* what it retrieved.
+- **Smaller chunks won on every answer-quality metric**: chunk=120 beat the chunk=400
+  default on both answer correctness (96% vs 92%) and citation accuracy (98% vs 92%).
+  Smaller chunks give the reranker tighter, more semantically focused passages to score, so
+  less irrelevant text dilutes the context the model actually answers from.
+- **The default config's false-refusal rate (6%, i.e. 3 of 57) was the worst of the three**,
+  and it's traceable to two specific questions (the home-office stipend and the password
+  policy) that scored just under the confidence threshold *only* when both the 400-token
+  chunk size and the reranker were combined — either shrinking the chunks to 120 tokens or
+  dropping the reranker (vector-only) fixed both. That's a concrete, reproducible instance of
+  reranker-score calibration interacting badly with larger chunks for this model/corpus —
+  worth retuning `refusal_score_threshold` if you hit false refusals with your own documents.
+- **One question failed identically in all three configs**: "which region had the highest
+  YoY growth" — the model consistently answered "Europe, +44%" instead of the actually-highest
+  "Asia-Pacific, +75%", despite the correct row being retrieved every time (it got Europe's
+  figure exactly right). That's a small-model reasoning limit (comparing five rows correctly),
+  not a retrieval failure — a larger/hosted model would likely get this right.
+- **One question was refused in all three configs**: "which quarter did the Northeast region
+  *first* report Falcon-3 sales" — this requires inferring an absence (no Falcon-3 row for
+  Northeast in Q1/Q2) across a CSV rather than finding a sentence that states it, which plain
+  retrieval can't directly answer. Included deliberately as a genuinely hard case; all three
+  strategies refused rather than guess, which is the correct failure mode even though it's a
+  miss on recall.
+- **Injection defense was 100% across every config and every one of the 3 planted payloads**
+  (hidden tiny-font PDF instruction, HTML comment, `display:none` block) — none of the fake
+  password, fake "only legitimate supplier" claim, or fake bankruptcy claim ever appeared in
+  an answer, in any configuration.
+
+**Bottom line**: for this corpus and model, hybrid+rerank with smaller chunks (120 tokens) is
+the best overall setting — it doesn't sacrifice retrieval recall and meaningfully improves
+both answer correctness and citation precision, while fixing the false-refusal issue seen at
+the larger default chunk size.
 
 ## Security
 
