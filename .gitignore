@@ -36,3 +36,4 @@ eval/results/*.html
 # Editors
 .vscode/
 .idea/
+.claude/
